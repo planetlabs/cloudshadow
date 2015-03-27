@@ -21,7 +21,10 @@ setup(name='cloudmask',
       include_package_data=True,
       zip_safe=False,
       install_requires=[
-          'click'
+          'click',
+          'numpy',
+          'scipy',
+          'rasterio'
       ],
       extras_require={
           'test': ['pytest'],
