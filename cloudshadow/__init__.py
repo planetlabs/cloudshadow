@@ -1,7 +1,7 @@
 
 import numpy as np
 from scipy import ndimage
-import raster as rio
+import rasterio as rio
 
 
 def get_spherical_azimuth(az):
