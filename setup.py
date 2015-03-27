@@ -7,7 +7,7 @@ with codecs_open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
 
 
-setup(name='cloudmask',
+setup(name='cloudshadow',
       version='0.0.1',
       description=u"Predict cloud shadow locations based on a cloud mask and sun angle.",
       long_description=long_description,
