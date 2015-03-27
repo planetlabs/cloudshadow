@@ -128,10 +128,10 @@ def get_cloud_shadows(srcpath, sun_azimuth, sun_elevation, dstpath):
     cloud_altitude = 0.05 * z_sun
     
     height, width = cmask.shape
-    x0, y0 = to_pixel_space(x_sun, y_sun, width, height)
+    xp_sun, yp_sun = to_pixel_space(x_sun, y_sun, width, height)
     
     # TODO: Generalize to all centroids
-    p0 = np.array([x0, y0, z])
+    p0 = np.array([xp_sun, yp_sun, z_sun])
     p1 = np.array([centroids[0][0], centroids[0][1], cloud_altitude])
     
     # Get the intersection of the ray with the ground
