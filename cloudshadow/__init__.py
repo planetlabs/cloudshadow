@@ -55,16 +55,19 @@ def get_xyz(az, ze):
 
 def get_xy_intersection(p0, p1):
     """
-    Get the intersection of a 3D vector with the xy plane.
+    Get the intersection of a 3D vector with the xy plane,
+    e.g., the vector between a sun and cloud projected to the ground.
     
     :param p0:
         Three dimensional vector (numpy array)
     :param p1:
         Three dimensional vector (numpy array)
     """
-    l = p1 - p0
+    l = np.rot90(p1 - p0, k=-1)
     zn = np.array([0, 0, 1])
-    return p0 + np.dot(zn, p0) / np.dot(zn, -1*l) * l
+    
+    tmp = np.array([p0]).T + np.dot(zn, p0) / np.dot(zn, -1*l) * l
+    return np.rot90(tmp, k=1)
 
 
 def to_pixel_space(x, y, width, height):
@@ -107,11 +110,38 @@ def get_cloud_shadows(srcpath, sun_azimuth, sun_elevation, dstpath):
     
     with rio.drivers():
         with rio.open(srcpath, 'r') as src:
-            cmask = src.read_band(1)
+            band = src.read(1)
+    
+    # Transform the sun azimuth angle
+    azimuth = get_spherical_azimuth(sun_azimuth)
+    azimuth += 90
+    azimuth_radians = azimuth * np.pi / 180.0
+    
+    unit_offset = np.array([np.sin(azimuth_radians), np.cos(azimuth_radians)])
     
     # Label the cloud mask and get the 1st moment
     lbl, n_features = ndimage.label(band)
-    centroids = ndimage.measurements.center_of_mass(band, lbl, [i for i in xrange(1, n_features - 1)])
+    centroids = np.array(ndimage.measurements.center_of_mass(band, lbl, np.arange(1, n_features - 1)))
+    n_centroids = len(centroids)
+    
+    print type(centroids)
+    centroid_offsets = 100 * unit_offset + centroids
+    
+    # Get points between the centroids and offsets
+    m = np.divide.reduce(unit_offset)
+    
+    # Generate the domain for each vector projected in the direction
+    # of the cast shadow
+    x0 = centroids[:, 1].reshape(-1, 1)
+    x1 = centroid_offsets[:, 1].reshape(-1, 1)
+    steps = np.linspace(0, 1, 100)
+    x = x0 + (x1 - x0) * steps
+    
+    # Get the y component of the projected vector
+    y0 = centroids[:, 0].reshape(-1, 1)
+    y = m * (x - x0) + y0
+    
+    return (x, y)
     
     # Transform Landsat defined sun position into spherical coordinates
     # TODO: Generalize with decorator since not all imagery will be Landsat
@@ -122,29 +152,28 @@ def get_cloud_shadows(srcpath, sun_azimuth, sun_elevation, dstpath):
     # This assumes the sun is at r = 1
     x_sun, y_sun, z_sun = get_xyz(sun_azimuth, sun_elevation)
     
-    # Assume the cloud is half way between the sun and ground
-    # TODO: Improve this approximation
-    #       or walk along line of shadow to sample pixels
-    cloud_altitude = 0.05 * z_sun
+    # Choose two extremes for cloud elevation
+    # TODO: Parameterize based on thermal response
+    min_cloud_ele = 0 * z_sun
+    max_cloud_ele = 0.5 * z_sun
     
-    height, width = cmask.shape
+    height, width = band.shape
     xp_sun, yp_sun = to_pixel_space(x_sun, y_sun, width, height)
     
-    # TODO: Generalize to all centroids
-    p0 = np.array([xp_sun, yp_sun, z_sun])
-    p1 = np.array([centroids[0][0], centroids[0][1], cloud_altitude])
+    sun_vector = np.array([xp_sun, yp_sun, z_sun])
+    
+    min_ele_cloud_vectors = np.append(centroids, min_cloud_ele * np.ones((n_centroids, 1)), 1)
+    max_ele_cloud_vectors = np.append(centroids, max_cloud_ele * np.ones((n_centroids, 1)), 1)
     
     # Get the intersection of the ray with the ground
-    x_intersect, y_intersect, z_intersect = get_xy_intersection(p0, p1)
+    min_cloud_ele_intersects = get_xy_intersection(sun_vector, min_ele_cloud_vectors)
+    max_cloud_ele_intersects = get_xy_intersection(sun_vector, max_ele_cloud_vectors)
     
-    # TODO: Sample the pixel at (x_intersect, y_intersect)
+    # Sample points along the projected line containing the cloud shadow
     
-    
-    
-    
-    
-    
-    
-    
-    
+    return {
+        'sun': sun_vector,
+        'min_cloud_ele': min_cloud_ele_intersects,
+        'max_cloud_ele': max_cloud_ele_intersects
+    }
     
